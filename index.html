@@ -6,10 +6,31 @@
   <style>
     body { margin: 0; overflow: hidden; background: #111; }
     #hud { position: absolute; top: 10px; left: 10px; color: white; font-family: sans-serif; }
+    #joystick {
+      position: absolute;
+      bottom: 50px;
+      left: 50px;
+      width: 120px;
+      height: 120px;
+      background: rgba(255,255,255,0.1);
+      border: 2px solid #fff;
+      border-radius: 50%;
+      touch-action: none;
+    }
+    #stick {
+      width: 40px;
+      height: 40px;
+      background: red;
+      border-radius: 50%;
+      position: absolute;
+      top: 40px;
+      left: 40px;
+    }
   </style>
 </head>
 <body>
   <div id="hud">Tốc độ: 0</div>
+  <div id="joystick"><div id="stick"></div></div>
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
   <script>
     // Scene setup
@@ -43,7 +64,9 @@
     scene.add(car);
 
     // Ánh sáng
-    scene.add(new THREE.DirectionalLight(0xffffff, 1).position.set(10,20,10));
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(10,20,10);
+    scene.add(light);
     scene.add(new THREE.AmbientLight(0x404040));
 
     camera.position.set(0, 5, 10);
@@ -55,15 +78,17 @@
     const socket = new WebSocket("ws://localhost:8080");
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (!otherCars[data.id]) {
-        otherCars[data.id] = new THREE.Mesh(
-          new THREE.BoxGeometry(2, 1, 4),
-          new THREE.MeshPhongMaterial({ color: 0x00ff00 })
-        );
-        scene.add(otherCars[data.id]);
+      if (data.id && data.id !== "player1") {
+        if (!otherCars[data.id]) {
+          otherCars[data.id] = new THREE.Mesh(
+            new THREE.BoxGeometry(2, 1, 4),
+            new THREE.MeshPhongMaterial({ color: 0x00ff00 })
+          );
+          scene.add(otherCars[data.id]);
+        }
+        otherCars[data.id].position.set(data.x, data.y, data.z);
+        otherCars[data.id].rotation.y = data.rot;
       }
-      otherCars[data.id].position.set(data.x, data.y, data.z);
-      otherCars[data.id].rotation.y = data.rot;
     };
 
     // Điều khiển xe
@@ -71,8 +96,27 @@
     document.addEventListener("keydown", e => {
       if (e.key === "ArrowUp") speed += 0.1;
       if (e.key === "ArrowDown") speed -= 0.1;
-      if (e.key === "ArrowLeft") car.rotation.y += 0.05;
-      if (e.key === "ArrowRight") car.rotation.y -= 0.05;
+    });
+
+    // Joystick xoay tròn
+    const joystick = document.getElementById("joystick");
+    const stick = document.getElementById("stick");
+    let dragging = false;
+
+    joystick.addEventListener("mousedown", e => { dragging = true; });
+    joystick.addEventListener("mouseup", e => { dragging = false; stick.style.left="40px"; stick.style.top="40px"; });
+    joystick.addEventListener("mousemove", e => {
+      if (!dragging) return;
+      const rect = joystick.getBoundingClientRect();
+      const x = e.clientX - rect.left - rect.width/2;
+      const y = e.clientY - rect.top - rect.height/2;
+      const angle = Math.atan2(y, x);
+
+      const radius = rect.width/2 - 20;
+      stick.style.left = (rect.width/2 + Math.cos(angle)*radius - 20) + "px";
+      stick.style.top  = (rect.height/2 + Math.sin(angle)*radius - 20) + "px";
+
+      car.rotation.y = -angle;
     });
 
     function animate() {
