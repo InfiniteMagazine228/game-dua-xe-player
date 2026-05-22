@@ -4,13 +4,17 @@ const wss = new WebSocket.Server({ port: 8080 });
 let clients = [];
 
 wss.on("connection", ws => {
+  const id = Date.now().toString();
+  ws.id = id;
   clients.push(ws);
 
   ws.on("message", message => {
-    // Broadcast trạng thái xe cho tất cả client khác
+    const data = JSON.parse(message);
+    data.id = ws.id;
+    // Broadcast cho tất cả client khác
     clients.forEach(client => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(message);
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(data));
       }
     });
   });
